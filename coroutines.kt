@@ -1,5 +1,5 @@
-/* 
-Topics od investigation: 
+/*
+Topics od investigation:
 1. coroutines
 2. jobs
 3. suspend functions
@@ -9,6 +9,7 @@ Topics od investigation:
 7. async{} and await()
 8. withConext() {}
 */
+
 package com.salmakhd.forpracticelocal
 
 import android.os.Bundle
@@ -34,6 +35,8 @@ class MainActivity : ComponentActivity() {
                 Log.i("MAIN", "Switching context to: MAIN. Coroutine currently running in context: ${Thread.currentThread().name}")
             }
             // checks if the
+            // what if the job is cancelled? use finally to do clean up
+            try {
                 repeat(3) {
                     // if the coroutine is canceled or not
                     if (isActive) {
@@ -42,6 +45,14 @@ class MainActivity : ComponentActivity() {
                         delay(1000)
                     }
                 }
+            } finally {
+                Log.d("MAIN", "Cleaning up coroutine resources before canceling it...")
+                // what if we have to call a suspending function here?
+                // use this:
+                withContext(NonCancellable) {
+                    doNetworkCall()
+                }
+            }
             withTimeout(3000) {// important point
                 repeat(3) {
                     Log.i("MAIN", "Execution taking less than 3 seconds...")
@@ -84,6 +95,62 @@ class MainActivity : ComponentActivity() {
             // launch a coroutine whose lifecycle is attached to the lifecycle of the parent scope
             lifecycleScope.launch {
                 doNetworkCall()
+            }
+
+            // launch a timed coroutine without having to handle the TimeoutCancellationException manually
+            /*
+            what happens when the time exceeds 3 seconds? an exception is thrown to be gracefully handled by functions
+            that are part of the coroutines library.
+            what happens if there are none functions to handle the exception? an exception will be thrown unless
+            we specify this function.
+             */
+            withTimeoutOrNull(3000) {
+                doNetworkCall()
+            }
+            
+            // lazily start a coroutine (not started until await() is called)
+            GlobalScope.launch {
+                val lazyJob = async(start = CoroutineStart.LAZY) {
+                    // this coroutine will be executed only if await() is called (or start() on Job)
+                    doNetworkCall()
+                }
+                // start coroutine execution
+                // why using this alone is dangerous: 
+                /*
+                What happens if the program execution terminated after this line? The coroutine will never be cancelled!
+                 */
+                lazyJob.start()
+                /*
+                Solution? use a suspending function to ensure the function won't return
+                until all execution is complete.
+                 */
+                // better solution:
+                coroutineScope { 
+                    lazyJob.start()
+                }
+                // get the result
+                val result = lazyJob.await()
+                
+                // create a new thread for a coroutine
+                launch(newSingleThreadContext("custom thread")) {
+                    doNetworkCall()
+                }
+            }
+        }
+
+        // launch a custom coroutine scope
+        /* behavior: it will not complete until all the child coroutines are finished */
+        runBlocking {
+            // similar to withContext, the coroutine will not return until execution is complete
+            coroutineScope { // will not return until all its child coroutines are done executing
+                doNetworkCall()
+                //concurrent execution of coroutines, function won't return until execution is complete
+                launch {
+                    delay(3000)
+                }
+                launch {
+                    delay(2000)
+                }
             }
         }
     }
