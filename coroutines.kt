@@ -18,7 +18,11 @@ import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
 
+const val MAIN_ACTIVITY_TAG = "Main"
 class MainActivity : ComponentActivity() {
+    // create custom scopes for coroutines -> to manage their lifecycle (canceled when destroyed)
+    private val mainScope = MainScope()
+    private val customScope = CoroutineScope(Dispatchers.IO)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +85,8 @@ class MainActivity : ComponentActivity() {
             val result1 = async {
                 doNetworkCall()
             }
+            // a way to find out which context the job is running in
+            Log.i(MAIN_ACTIVITY_TAG,"One of the running jobs is: " + coroutineContext[Job])
             // how to make the coroutine wait for the execution of async{} to complete?
             result1.await()
 
@@ -107,7 +113,7 @@ class MainActivity : ComponentActivity() {
             withTimeoutOrNull(3000) {
                 doNetworkCall()
             }
-            
+
             // lazily start a coroutine (not started until await() is called)
             GlobalScope.launch {
                 val lazyJob = async(start = CoroutineStart.LAZY) {
@@ -115,7 +121,7 @@ class MainActivity : ComponentActivity() {
                     doNetworkCall()
                 }
                 // start coroutine execution
-                // why using this alone is dangerous: 
+                // why using this alone is dangerous:
                 /*
                 What happens if the program execution terminated after this line? The coroutine will never be cancelled!
                  */
@@ -125,12 +131,12 @@ class MainActivity : ComponentActivity() {
                 until all execution is complete.
                  */
                 // better solution:
-                coroutineScope { 
+                coroutineScope {
                     lazyJob.start()
                 }
                 // get the result
                 val result = lazyJob.await()
-                
+
                 // create a new thread for a coroutine
                 launch(newSingleThreadContext("custom thread")) {
                     doNetworkCall()
@@ -151,6 +157,32 @@ class MainActivity : ComponentActivity() {
                 launch {
                     delay(2000)
                 }
+            }
+
+            // define a coroutine whose context can change at suspending points
+            launch(Dispatchers.Unconfined) {
+                // context will change to the context used by this function
+                delay(3000)
+                // context will change to the context used by this function
+                doNetworkCall()
+            }
+        }
+
+        // how to prevent coroutines from being affected by the parent coroutine
+        // 1. explicitly specify a scope
+        GlobalScope.launch {  } // not affected by main scope
+        // 2. pass a newly created Job to coroutine launchers
+        GlobalScope.launch {
+            launch(Job()) { // this coroutine will not be canceled even if its parent coroutine is
+
+            }
+        }
+
+        // set a name for the coroutine for debugging purposes
+        GlobalScope.launch {
+            // combining more than one piece of coroutine info -> use the + operator
+            async(Dispatchers.Main + CoroutineName("sayHelloCoroutine")){
+
             }
         }
     }
