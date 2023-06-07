@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.io.IOException
 
 const val MAIN_ACTIVITY_TAG = "Main"
 class MainActivity : ComponentActivity() {
@@ -309,6 +310,89 @@ The final emitted value is: 3 -> Sogand
         ZIP: a->b is: 3 -> 3
          */
 
+        // flattening techniques in flows
+        // 1: .flatMapConcat() -> it ensures the inner flow is executed before resuming collection
+        // from the first flow
+        val flow5 = (1..3).asFlow()
+        val flow6 = flow {
+            throw IOException()
+            delay(2000)
+            emit(1)
+            delay(2000)
+            emit(2)
+        }
+
+        // handling exceptions
+        runBlocking {
+            flow6
+                    // catches all the exceptions thrown in the upstream flow
+                .catch { Log.i(MAIN_ACTIVITY_TAG, "The exception was just caught")}
+                .collect {
+                    // .catch will not do anything special in this case
+                    //throw IOException()
+                }
+
+            /*
+            output:
+                The exception was just caught
+                 FATAL EXCEPTION: main Process: com.salmakhd.forpracticelocal, PID: 10245
+            java.lang.RuntimeException: Unable to start activity ComponentInfo{com.salmakhd.forpracticelocal/com.salmakhd.forpracticelocal.MainActivity}: java.io.IOException
+             */
+
+            // catching bot upstream and downstream flows
+            flow6
+                .onEach {
+                    // move all .collect() logic to here
+                    // operations...
+                    throw IOException() // NO PROBLEM~
+                }
+                .catch { e->
+                    Log.i(MAIN_ACTIVITY_TAG, "Could catch the exception thrown in both streams")
+                }
+                .onCompletion { flowState ->
+                    if (flowState != null)
+                        Log.i(MAIN_ACTIVITY_TAG, "The flow executed successfully")
+                    else
+                        Log.i(MAIN_ACTIVITY_TAG, "An exception was detected, coroutine canceled.")
+                    Log.i(MAIN_ACTIVITY_TAG, "This line is executed no matter what.")
+                }
+                .collect { value ->
+                    // IMPORTANT: coroutine collection will be canceled when an exception is thrown
+                    // this line will never get executed
+                    Log.i(MAIN_ACTIVITY_TAG, "Exception was successfully handled!")
+                }
+            /*
+            OUTPUT:
+                Could catch the exception thrown in both streams
+                This line is executed no matter what.
+             */
+        }
+
+        // making flows cancellable
+        val flow8 = flow {
+            emit(2)
+            delay(2000)
+            emit(3)
+        }
+        runBlocking {
+            launch {
+                flow8
+                    .cancellable()
+                    .collect { number ->
+                        Log.i(
+                            MAIN_ACTIVITY_TAG,
+                            "The value that made it to this line is: $number only!"
+                        )
+                        delay(1000)
+                        cancel()
+                    }
+            }
+        }
+        /*
+        OUTPUT:
+        The value that made it to this line is: 2 only!
+         */
+
+        //
     }
 }
-
