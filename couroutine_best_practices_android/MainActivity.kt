@@ -115,5 +115,20 @@ class MainActivity : ComponentActivity() {
               return null
           }
       }
+
+      // 10: impoortant point: specifying nothing when launching a coroutine will execute the coroutine inside a worker thread
+      
+        GlobalScope.launch {
+            Log.i(MAIN_ACTIVITY_TAG, "JUST CHILLING INSIDE A COROUTINE WITH THE DEFAULT DISPATCHER BRO! Thraed: ${Thread.currentThread().name}")
+        }
+        GlobalScope.launch(Dispatchers.Main) {
+            Log.i(MAIN_ACTIVITY_TAG, "JUST CHILLING INSIDE A COROUTINE WITH THE MAIN DISPATCHER BRO! Thraed: ${Thread.currentThread().name}")
+        }
+
+        /*
+        OUTPUT: 
+        2023-09-07 10:07:18.533 10884-10913 Main_Activity           com.salmakhd.android.fibo            I  JUST CHILLING INSIDE A COROUTINE WITH THE DEFAULT DISPATCHER BRO! Thraed: DefaultDispatcher-worker-2
+        2023-09-07 10:07:18.909 10884-10884 Main_Activity           com.salmakhd.android.fibo            I  JUST CHILLING INSIDE A COROUTINE WITH THE MAIN DISPATCHER BRO! Thraed: main
+        */
     }
 }
